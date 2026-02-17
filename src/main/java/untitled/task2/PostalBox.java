@@ -1,7 +1,6 @@
 package untitled.task2;
 
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.RandomStringUtils;
 import untitled.task2.entity.Cell;
 import untitled.task2.entity.Order;
 
@@ -28,7 +27,7 @@ class PostalBox {
             if (cell.isFree()) {
                 String code = notificationApi.generateCode(orderId);
                 cell.placeOrder(orderId);
-                Order order = new Order(orderId, code, cell.getNumber());
+                Order order = new Order(orderId, code);
                 codeToOrder.put(code, order);
                 notificationApi.sendCode(orderId, code);
 
@@ -49,12 +48,12 @@ class PostalBox {
         }
 
         Cell cell = cells.stream()
-                .filter(c -> c.getNumber() == order.getCellNumber())
+                .filter(c -> c.getOrderId().equals(order.getOrderId()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Ячейка не найдена"));
 
         cell.removeOrder();
         codeToOrder.remove(receiveCode);
 
-        return "Ваш заказ " + order.getOrderId() + " в ячейке " + order.getCellNumber();    }
+        return "Ваш заказ " + order.getOrderId() + " в ячейке " + cell.getNumber();    }
 }

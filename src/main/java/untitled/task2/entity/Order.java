@@ -8,5 +8,4 @@ import lombok.Getter;
 public class Order {
     private final String orderId;
     private final String receiveCode;
-    private final int cellNumber;
 }
