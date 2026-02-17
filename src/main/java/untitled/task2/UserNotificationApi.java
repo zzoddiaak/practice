@@ -1,5 +1,6 @@
 package untitled.task2;
 
 public interface UserNotificationApi {
-    void sendCode(String userId, String orderId, String code);
+    void sendCode(String orderId, String code);
+    String generateCode(String orderId);
 }

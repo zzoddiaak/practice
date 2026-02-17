@@ -2,30 +2,40 @@ package untitled.task2;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
+import untitled.task2.entity.Cell;
+import untitled.task2.entity.Order;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RequiredArgsConstructor
 class PostalBox {
 
-    private final boolean[] cells;
-    private final Map<String, String> codeToOrder;
-    private final Map<String, Integer> orderToCells;
+    private final List<Cell> cells;
+    private final Map<String, Order> codeToOrder = new HashMap<>();
     private final UserNotificationApi notificationApi;
 
+    public int placeOrder(String orderId) {
 
-    public int placeOrder(String orderId, String userId) {
+        boolean orderExists = codeToOrder.values().stream()
+                .anyMatch(order -> order.getOrderId().equals(orderId));
 
-        for (int i = 0; i < cells.length; i++) {
-            if (!cells[i]) {
-                cells[i] = true;
-                String code = RandomStringUtils.randomAlphanumeric(6);
-                codeToOrder.put(code, orderId);
-                orderToCells.put(orderId, i);
-                notificationApi.sendCode(userId, orderId, code);
+        if (orderExists) {
+            throw new IllegalArgumentException("Заказ с таким ID уже находится в постамате");
+        }
+        for (Cell cell : cells) {
+            if (cell.isFree()) {
+                String code = notificationApi.generateCode(orderId);
+                cell.placeOrder(orderId);
+                Order order = new Order(orderId, code, cell.getNumber());
+                codeToOrder.put(code, order);
+                notificationApi.sendCode(orderId, code);
 
-                return i;
+                return cell.getNumber();
+
             }
+
 
         }
 
@@ -33,19 +43,18 @@ class PostalBox {
     }
 
     public String getOrder(String receiveCode) {
-        if (!codeToOrder.containsKey(receiveCode)) {
+        Order order = codeToOrder.get(receiveCode);
+        if (order == null) {
             throw new IllegalArgumentException("Кода не существует");
-
         }
 
-        String orderId = codeToOrder.get(receiveCode);
-        Integer cell = orderToCells.get(orderId);
+        Cell cell = cells.stream()
+                .filter(c -> c.getNumber() == order.getCellNumber())
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Ячейка не найдена"));
 
-        cells[cell] = false;
-
+        cell.removeOrder();
         codeToOrder.remove(receiveCode);
-        orderToCells.remove(orderId);
 
-        return "Ваш заказ " + orderId + " в ячейке " + cell;
-    }
+        return "Ваш заказ " + order.getOrderId() + " в ячейке " + order.getCellNumber();    }
 }

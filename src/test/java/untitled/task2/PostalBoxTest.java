@@ -5,105 +5,134 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import untitled.task2.entity.Cell;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PostalBoxTest {
+
     @Mock
     private UserNotificationApi notificationApi;
 
     private PostalBox postalBox;
-    private boolean[] cells;
-    private Map<String, String> codeToOrder;
-    private Map<String, Integer> orderToCells;
+    private List<Cell> cells;
 
     @BeforeEach
     void setUp() {
-        cells = new boolean[3];
-        codeToOrder = new HashMap<>();
-        orderToCells = new HashMap<>();
-        postalBox = new PostalBox(cells, codeToOrder, orderToCells, notificationApi);
+        cells = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            cells.add(new Cell(i));
+        }
+
+        postalBox = new PostalBox(cells, notificationApi);
     }
 
     @Test
-    void placeOrderWhenFreeCell(){
+    void placeOrderWhenFreeCellExists() {
         String orderId = "ORDER-123";
-        String userId = "USER-456";
+        String expectedCode = "ABC123";
+        when(notificationApi.generateCode(orderId)).thenReturn(expectedCode);
 
-        int cellNumber = postalBox.placeOrder(orderId, userId);
+        int cellNumber = postalBox.placeOrder(orderId);
 
         assertEquals(0, cellNumber);
 
-        verify(notificationApi).sendCode(eq(userId), eq(orderId), anyString());
+        verify(notificationApi).generateCode(orderId);
+        verify(notificationApi).sendCode(orderId, expectedCode);
     }
 
-   @Test
-   void placeOrderWhenFirstCellOfTheLesson(){
-       cells[0] = true;
-
-       String orderId = "ORDER-123";
-       String userId = "USER-456";
-
-       int cellNumber = postalBox.placeOrder(orderId, userId);
-
-       assertEquals(1, cellNumber);
-   }
-
     @Test
-    void placeOrderWhenAllCellsAreOccupied(){
-        cells[0] = true;
-        cells[1] = true;
-        cells[2] = true;
+    void placeOrderWhenMultipleCellsExist() {
+        cells.get(0).placeOrder("EXISTING-ORDER");
 
         String orderId = "ORDER-123";
-        String userId = "USER-456";
+        when(notificationApi.generateCode(orderId)).thenReturn("ABC123");
+
+        int cellNumber = postalBox.placeOrder(orderId);
+
+        assertEquals(1, cellNumber);
+    }
+
+    @Test
+    void placeOrderWhenOrderAlreadyExists() {
+        String orderId = "ORDER-123";
+
+        when(notificationApi.generateCode(orderId)).thenReturn("ABC123");
+        postalBox.placeOrder(orderId);
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> postalBox.placeOrder(orderId, userId)
+                () -> postalBox.placeOrder(orderId)
         );
-        assertEquals("Нет свободных ячеек", exception.getMessage());
 
-        verify(notificationApi, never()).sendCode(anyString(), anyString(), anyString());
+        assertEquals("Заказ с таким ID уже находится в постамате", exception.getMessage());
     }
 
     @Test
-    void getOrderWhenCorrectCodeAndCodeAlreadyUsed(){
+    void placeOrderWhenNoFreeCells() {
+
+        for (int i = 0; i < cells.size(); i++) {
+            cells.get(i).placeOrder("ORDER-" + i);
+        }
+
+        String orderId = "NEW-ORDER";
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> postalBox.placeOrder(orderId)
+        );
+
+        assertEquals("Нет свободных ячеек", exception.getMessage());
+    }
+
+    @Test
+    void getOrderWhenCorrectCode() {
         String orderId = "ORDER-123";
-        String userId = "USER-456";
         String code = "ABC123";
 
-        cells[0] = true;
-        codeToOrder.put(code, orderId);
-        orderToCells.put(orderId, 0);
+        when(notificationApi.generateCode(orderId)).thenReturn(code);
+
+        int cellNumber = postalBox.placeOrder(orderId);
 
         String message = postalBox.getOrder(code);
 
-        assertEquals("Ваш заказ ORDER-123 в ячейке 0" ,message);
+        assertEquals("Ваш заказ ORDER-123 в ячейке " + cellNumber, message);
+
+        assertTrue(cells.get(cellNumber).isFree());
+        assertNull(cells.get(cellNumber).getOrderId());
+    }
+
+    @Test
+    void getOrderWhenInvalidCode() {
+        String invalidCode = "WRONG-CODE";
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> postalBox.getOrder(code)
+                () -> postalBox.getOrder(invalidCode)
         );
 
         assertEquals("Кода не существует", exception.getMessage());
     }
 
     @Test
-    void getOrderWhenInvalidCode(){
-        String invalidCode = "WRONG-CODE";
+    void getOrderWhenCodeAlreadyUsed() {
+        String orderId = "ORDER-123";
+        String code = "ABC123";
+
+        when(notificationApi.generateCode(orderId)).thenReturn(code);
+
+        postalBox.placeOrder(orderId);
+
+        postalBox.getOrder(code);
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> postalBox.getOrder(invalidCode)
+                () -> postalBox.getOrder(code)
         );
 
         assertEquals("Кода не существует", exception.getMessage());
